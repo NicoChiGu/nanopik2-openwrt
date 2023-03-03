@@ -9,7 +9,7 @@ on:
   repository_dispatch:
   workflow_dispatch:
     inputs:
-      branch:
+      source_branch:
         description: "Select the source branch"
         required: false
         default: "lede"
@@ -17,22 +17,24 @@ on:
         options:
           - lede
           - official
-      openwrt_soc:
-        description: "Select device SoC"
+          - immortalwrt
+      openwrt_board:
+        description: "Select device board"
         required: false
         default: "all"
         type: choice
         options:
           - all
-          - s905x3_s905d_s912
+          - s922x_s905x3_s905d_s912_s905l3a
+          - rock5b_r66s_r68s_beikeyun_l1pro
+          - eaidk-610_king3399_tn3399
+          - vplus_tqc-a01_tanix-tx6
           - a311d
           - s922x
           - s922x-n2
-          - s922x-reva
           - s905x3
           - s905x3-b
           - s905x2
-          - s905x2-km3
           - s912
           - s912-m8s
           - s905d
@@ -40,30 +42,58 @@ on:
           - s905x
           - s905w
           - s905
+          - s905l2
+          - s905l3
           - s905l3a
+          - s905l3b
+          - s905lb-r3300l
+          - rock5b
+          - h88k
+          - r66s
+          - r68s
+          - h66k
+          - h68k
+          - eaidk-610
+          - king3399
+          - tn3399
+          - beikeyun
+          - l1pro
+          - vplus
+          - tqc-a01
+          - tanix-tx6
       openwrt_kernel:
         description: "Select kernel version"
         required: false
-        default: "5.10.135_5.15.50"
+        default: "5.15.85_6.1.1"
         type: choice
         options:
-          - 5.4.210_5.10.135_5.15.50
-          - 5.4.210_5.10.135
-          - 5.10.135_5.15.50
-          - 5.15.50_6.0.1
-          - 5.4.210
-          - 5.10.135
-          - 5.15.50
-          - 6.0.1
+          - 5.4.225_5.10.160_5.15.85
+          - 5.4.225_5.10.160
+          - 5.10.160_5.15.85
+          - 5.15.85_6.1.1
+          - 5.4.225
+          - 5.10.160
+          - 5.15.85
+          - 6.1.1
+          - 6.1.13
+          - 6.1.14
       auto_kernel:
         description: "Auto use the latest kernel"
         required: false
         default: true
         type: boolean
-      openwrt_size:
-        description: "Set the rootfs size(Unit: MiB)."
+      kernel_repo:
+        description: "Set the kernel repository"
         required: false
-        default: "960"
+        default: "https://github.com/ophub/kernel/tree/main/pub"
+      openwrt_size:
+        description: "Set the rootfs size(Unit: MiB)"
+        required: false
+        default: "1024"
+      openwrt_armvirt_url:
+        description: "armvirt_url"
+        required: true
+        default: "null"      
 
 env:
   TZ: America/New_York
@@ -82,48 +112,55 @@ jobs:
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
-          sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc 2>/dev/null
-          sudo -E apt-get -qq update
-          sudo -E apt-get -qq install $(curl -fsSL https://is.gd/depend_ubuntu2204_openwrt)
-          sudo -E apt-get -qq autoremove --purge
-          sudo -E apt-get -qq clean
+          docker rmi `docker images -q`
+          [[ -n "${AGENT_TOOLSDIRECTORY}" ]] && sudo rm -rf "${AGENT_TOOLSDIRECTORY}"
+          sudo rm -rf /usr/share/dotnet /etc/apt/sources.list.d /usr/local/lib/android 2>/dev/null
+          sudo -E apt-get -y update
+          sudo -E apt-get -y purge azure-cli ghc* zulu* llvm* firefox google* dotnet* powershell openjdk* mongodb* moby* || true
+          sudo -E apt-get -y install $(curl -fsSL https://is.gd/depend_ubuntu2204_openwrt)
+          sudo -E systemctl daemon-reload
+          #sudo -E apt-get -y full-upgrade
+          sudo -E apt-get -y autoremove --purge
+          sudo -E apt-get clean
           sudo timedatectl set-timezone "${TZ}"
+          echo "OPENWRT_RELEASE=${{ inputs.source_branch }}" >> ${GITHUB_ENV}
           echo "status=success" >> ${GITHUB_OUTPUT}
 
       - name: Download OpenWrt Armvirt firmware
         id: down
         if: ${{ steps.init.outputs.status }} == 'success' && !cancelled()
         run: |
-          openwrt_url="$(curl -s "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases" | grep -o "OpenWrt_.*${{ github.event.inputs.branch }}.*/.*rootfs.tar.gz" | head -n 1)"
-          [[ -z "${openwrt_url}" ]] && echo -e "OpenWrt file not found!" && exit 1
-          #
           armvirt_tarfile_path="openwrt/bin/targets/armvirt/64"
+          
           [[ -d "${armvirt_tarfile_path}" ]] || mkdir -p ${armvirt_tarfile_path}
-          #
-          wget -q -P "${armvirt_tarfile_path}" "https://github.com/${GITHUB_REPOSITORY}/releases/download/${openwrt_url}"
+
+          wget -q -P ${armvirt_tarfile_path} ${{ inputs.openwrt_armvirt_url }}
           [[ "${?}" -ne "0" ]] && echo "The armvirt file download failed!" && exit 1
+
           echo "status=success" >> ${GITHUB_OUTPUT}
 
-      - name: Build OpenWrt firmware
+      - name: Build OpenWrt firmware [ ${{ env.OPENWRT_RELEASE }} ]
         if: ${{ steps.down.outputs.status }} == 'success' && !cancelled()
-        uses: ophub/amlogic-s9xxx-openwrt@main
+        uses: NicoChiGu/amlogic-s9xxx-openwrt-nanopik2@main
         with:
           openwrt_path: openwrt/bin/targets/*/*/*rootfs.tar.gz
-          openwrt_soc: ${{ github.event.inputs.openwrt_soc }}
-          openwrt_kernel: ${{ github.event.inputs.openwrt_kernel }}
-          auto_kernel: ${{ github.event.inputs.auto_kernel }}
-          openwrt_size: ${{ github.event.inputs.openwrt_size }}
+          openwrt_board: ${{ inputs.openwrt_board }}
+          openwrt_kernel: ${{ inputs.openwrt_kernel }}
+          auto_kernel: ${{ inputs.auto_kernel }}
+          kernel_repo: ${{ inputs.kernel_repo }}
+          openwrt_size: ${{ inputs.openwrt_size }}
+          gh_token: ${{ secrets.GH_TOKEN }}
 
       - name: Upload OpenWrt Firmware to Release
         uses: ncipollo/release-action@main
         if: ${{ env.PACKAGED_STATUS }} == 'success' && !cancelled()
         with:
-          tag: OpenWrt_Aml_${{ github.event.inputs.branch }}_${{ env.PACKAGED_OUTPUTDATE }}
+          tag: OpenWrt_${{ env.OPENWRT_RELEASE }}_${{ env.PACKAGED_OUTPUTDATE }}
           artifacts: ${{ env.PACKAGED_OUTPUTPATH }}/*
           allowUpdates: true
           token: ${{ secrets.GH_TOKEN }}
           body: |
-            This is OpenWrt firmware for Amlogic s9xxx tv box
+            This is OpenWrt firmware for Amlogic and Rockchip
             * Firmware information
             Default IP: 192.168.1.1
             Default username: root
