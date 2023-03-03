@@ -78,7 +78,7 @@ build_openwrt=(
 # Set OpenWrt firmware size (Unit: MiB, SKIP_MB >= 4, BOOT_MB >= 256, ROOT_MB >= 512)
 SKIP_MB="68"
 BOOT_MB="256"
-ROOT_MB="960"
+ROOT_MB="1024"
 #
 #============================================================================
 
@@ -193,25 +193,25 @@ download_depends() {
     if [[ -d "${armbian_path}" ]]; then
         svn up ${armbian_path} --force
     else
-        svn co ${depends_repo}/amlogic-armbian ${armbian_path} --force
+        svn co ${depends_repo}/armbian-files ${armbian_path} --force
     fi
     # Sync /boot related files
     if [[ -d "${bootfs_path}" ]]; then
         svn up ${bootfs_path} --force
     else
-        svn co ${depends_repo}/common-files/bootfs ${bootfs_path} --force
+        svn co ${depends_repo}/armbian-files/platform-files/amlogic/bootfs ${bootfs_path} --force
     fi
     # Sync u-boot related files
     if [[ -d "${uboot_path}" ]]; then
         svn up ${uboot_path} --force
     else
-        svn co ${depends_repo}/amlogic-u-boot ${uboot_path} --force
+        svn co ${depends_repo}/u-boot/amlogic ${uboot_path} --force
     fi
     # Sync openvfd related files
     if [[ -d "${openvfd_path}" ]]; then
         svn up ${openvfd_path} --force
     else
-        svn co ${depends_repo}/common-files/rootfs/usr/share/openvfd ${openvfd_path} --force
+        svn co ${depends_repo}/armbian-files/platform-files/amlogic/rootfs/usr/share/openvfd ${openvfd_path} --force
     fi
 
     # Convert script library address to svn format
@@ -414,8 +414,8 @@ extract_armbian() {
     cp -rf ${root_comm}/* ${root}
 
     # Unzip the relevant files
-    tar -xJf "${armbian_path}/boot-common.tar.xz" -C ${boot}
-    tar -xJf "${armbian_path}/firmware.tar.xz" -C ${root}
+    #tar -xJf "${armbian_path}/boot-common.tar.xz" -C ${boot}
+    #tar -xJf "${armbian_path}/firmware.tar.xz" -C ${root}
 
     # Copy the same files
     [[ "$(ls ${configfiles_path}/bootfs 2>/dev/null | wc -w)" -ne "0" ]] && cp -rf ${configfiles_path}/bootfs/* ${boot}
@@ -424,8 +424,9 @@ extract_armbian() {
     # Copy the bootloader files
     [[ -d "${root}/lib/u-boot" ]] || mkdir -p "${root}/lib/u-boot"
     cp -f ${uboot_path}/bootloader/* ${root}/lib/u-boot
-    wget -qO ./k2uboot/u-boot-nanopik2.bin https://cdn.jsdelivr.net/gh/NicoChiGu/nanopik2-openwrt@main/uboot/u-boot-nanopik2.bin
-    cp ./k2uboot/u-boot-nanopik2.bin ${root}/lib/u-boot/u-boot-nanopik2.bin
+    mkdir -p ${make_path}/k2uboot
+    wget -qO ${make_path}/k2uboot/u-boot-nanopik2.bin https://cdn.jsdelivr.net/gh/NicoChiGu/nanopik2-openwrt@main/uboot/u-boot-nanopik2.bin
+    cp ${make_path}/k2uboot/u-boot-nanopik2.bin ${root}/lib/u-boot/u-boot-nanopik2.bin
     ls ${root}/lib/u-boot/
     # Copy the overload files
     cp -f ${uboot_path}/overload/* ${boot}
