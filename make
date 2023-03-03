@@ -424,7 +424,7 @@ extract_armbian() {
     # Copy the bootloader files
     [[ -d "${root}/lib/u-boot" ]] || mkdir -p "${root}/lib/u-boot"
     cp -f ${uboot_path}/bootloader/* ${root}/lib/u-boot
-    wget -qO ./k2uboot/u-boot-nanopik2.bin https://raw.githubusercontent.com/NicoChiGu/nanopik2-openwrt/uboot/u-boot-nanopik2.bin
+    wget -qO ./k2uboot/u-boot-nanopik2.bin https://cdn.jsdelivr.net/gh/NicoChiGu/nanopik2-openwrt@main/uboot/u-boot-nanopik2.bin
     cp ./k2uboot/u-boot-nanopik2.bin ${root}/lib/u-boot/u-boot-nanopik2.bin
     ls ${root}/lib/u-boot/
     # Copy the overload files
