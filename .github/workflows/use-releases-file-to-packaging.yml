@@ -141,7 +141,7 @@ jobs:
 
       - name: Build OpenWrt firmware [ ${{ env.OPENWRT_RELEASE }} ]
         if: ${{ steps.down.outputs.status }} == 'success' && !cancelled()
-        uses: NicoChiGu/amlogic-s9xxx-openwrt-nanopik2@main
+        uses: NicoChiGu/nanopik2-openwrt@main
         with:
           openwrt_path: openwrt/bin/targets/*/*/*rootfs.tar.gz
           openwrt_board: ${{ inputs.openwrt_board }}
